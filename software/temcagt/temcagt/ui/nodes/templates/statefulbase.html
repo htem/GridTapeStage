@@ -1,0 +1,67 @@
+{% import 'base.html' as base %}
+
+{% macro make_js() -%}
+    <script type="text/javascript">
+        {{ caller()|safe }}
+    </script>
+{%- endmacro %}
+
+{% macro make_css() -%}
+    <style>
+        {{ caller()|safe }}
+    </style>
+{%- endmacro %}
+
+
+{% macro head(name) -%}
+{{ base.head(name) }}
+{%- endmacro %}
+
+{% macro js(name) -%}
+{{ base.js(name) }}
+{{ name }}.state_callback = function (i) {
+    logger.debug({state_callback: i});
+    smn = i[0][0][0];
+    sn = i[0][0][1];
+    $("#{{ name }}_state_machine_label").text(smn);
+    // check if state and/or statemachine has changed
+    // if statemachine is new, send notification
+    if ({{ name }}.last_state_machine != smn) {
+        {{ name }}.notify(smn);
+    };
+    // if state is error, send error notification
+    if ((sn != null) && (typeof(sn) == 'object')) {
+        $("#{{ name }}_state_label").text("Error[" + sn.class + "]: " + sn.message);
+        $("#{{ name }}_state_label").css("background-color", "red");
+        {{ name }}.notify({
+            title: sn.class,
+            text: sn.message,
+            type: 'error',
+        });
+        // TODO set color of last_state
+    } else {
+        $("#{{ name }}_state_label").text(sn);
+        $("#{{ name }}_state_label").css("background-color", "white");
+    };
+    {{ name }}.last_state = sn;
+    {{ name }}.last_state_machine = smn;
+};
+
+$({{ name }}).on('connect', function () {
+    {{ name }}.signal('new_state.connect', {{ name }}.state_callback);
+});
+{%- endmacro %}
+
+{% macro css(name) -%}
+{{ base.css(name) }}
+{%- endmacro %}
+
+{% macro body(name) -%}
+{{ base.body(name) }}
+<div class="state_display">
+    StateMachine:
+    <span id="{{ name }}_state_machine_label">null</span>
+    State:
+    <span id="{{ name }}_state_label">null</span>
+</div>
+{%- endmacro %}

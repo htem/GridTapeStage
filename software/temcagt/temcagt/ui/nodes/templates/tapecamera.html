@@ -1,0 +1,199 @@
+{% import 'base.html' as base %}
+
+{% macro head(name) -%}
+<script src="{{url_for(name + '.static', filename='js/d3.js')}}" charset="utf-8"></script>
+<script src="{{url_for(name + '.static', filename='js/c3.js')}}"></script>
+<link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/c3.css')}}" />
+{%- endmacro %}
+
+{% macro js(name) -%}
+$(function() {
+    {{ name }}.overlay = document.getElementById("{{ name }}_frame_overlay");
+    {{ name }}.barcodes = [];
+    {{ name }}.t_slot = [0,0];
+});
+
+
+{{ name }}.draw_overlay = function () {
+     img = document.getElementById("{{ name }}_frame");
+    {{ name }}.overlay.width = img.width;
+    {{ name }}.overlay.height = img.height;
+    ctx = {{ name }}.overlay.getContext("2d");
+
+    // draw bounds
+    ctx.beginPath();
+    sx = {{ name }}.xr[0] / {{ name }}.ds;
+    ex = {{ name }}.xr[1] / {{ name }}.ds;
+    if (sx < 0) sx += img.width;
+    if (ex < 0) ex += img.width;
+    ctx.moveTo(sx, 0);
+    ctx.lineTo(sx, img.height);
+    ctx.moveTo(ex, 0);
+    ctx.lineTo(ex, img.height);
+    ctx.strokeStyle = 'red';
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.moveTo(0,{{ name }}.yt/{{ name }}.ds);
+    ctx.lineTo(img.width,{{ name }}.yt/{{ name }}.ds );
+    ctx.strokeStyle = 'red';
+    ctx.stroke();
+
+    // draw the found slot
+    t_x = {{ name }}.t_slot[0] / {{ name }}.ds - 20;
+    t_y = {{ name }}.t_slot[1] / {{ name }}.ds - 130 / {{ name }}.ds;
+    ctx.fillRect( t_x, t_y, 40, 260 / {{ name }}.ds );
+
+    // draw barcodes
+    ctx.font = '24px Arial';
+    //ctx.lineWidth = 1;
+    //ctx.strokeStyle = 'black';
+    ctx.fillStyle = 'white';
+    for (var index in {{ name }}.barcodes) {
+        bc = {{ name }}.barcodes[index];
+        x = bc.x / {{ name }}.ds;
+        y = bc.y / {{ name }}.ds;
+        // TODO draw rect around barcode
+        if (bc.type == "slot") {
+            ctx.fillStyle = 'white';
+        } else {
+            ctx.fillStyle = 'red';
+        };
+        ctx.fillText("" + bc.value, x, y);
+        //ctx.strokeText("" + bc.value, x, y);
+    };
+};
+
+{{ name }}.image_callback = function (i) {
+    logger.debug({image_callback: i});
+    {{ name }}.last_image = i[0][0];
+    if (document.visibilityState == 'visible') {
+        // draw image
+        $("#{{ name }}_frame").attr("src", "data:image/jpeg;base64, " + i[0][0]);
+
+        {{ name }}.draw_overlay();
+    };
+};
+
+{{ name }}.slot_image_callback = function (i) {
+    logger.debug({slot_image_callback: i});
+    // draw slot image
+    bc = i[0][0][1].barcode;
+    $("#{{ name }}_slot_image_" + bc.type + "_" + bc.value)
+        .attr("src", "data:image/jpeg;base64, " + i[0][0][0]);
+};
+
+{{ name }}.barcodes_callback = function (i) {
+    logger.debug({barcodes_callback: i});
+    barcodes = i[0][0];
+    {{ name }}.barcodes = barcodes;
+    s = $("#{{ name }}_barcode_list");
+    s.empty();
+    for (i in barcodes) {
+        // setup slot images img tags
+        bc = barcodes[i];
+        s.append("<li>" + bc.type + " " + bc.value + "</li>");
+    };
+    s = $("#{{ name }}_slot_image_list");
+    s.empty();
+    for (i in barcodes) {
+        bc = barcodes[i];
+        s.append(
+            "<li><img id='{{ name }}_slot_image_" +
+            bc.type +
+            "_" +
+            bc.value +
+            "'></img></li>");
+    };
+    /*
+    p = $("#{{ name }}_frame").position();
+    sx = p.left;
+    sy = p.top;
+    $("div.bc").remove();
+    for (var index in bcs) {
+        bc = bcs[index];
+        x = bc.x / 2. + sx;
+        y = bc.y / 2. + sy;
+        // insert text div at position
+        e = $("<div></div>");
+        e.text("" + bc.value);
+        e.css({
+            position: "absolute",
+            marginLeft: 0, marginTop: 0,
+            color: "black",
+            "background-color": "white",
+            top: y, left: x,
+        });
+        e.addClass("bc");
+        $("body").append(e);
+        $(e).css({top: y, left: x});
+        console.log({'bc': bc, 'x': x, 'y': y, 'sx': sx, 'sy': sy});
+    };
+    */
+};
+
+{{ name }}.beam_slot_callback = function (i) {
+    logger.debug({beam_slot_callback: i});
+    {{ name }}.beam_slot = i[0][0];
+    $("#{{ name }}_beam_slot_label").text(i[0][0].type + " " + i[0][0].value + "[y=" + i[0][0].y + "]");
+};
+
+{{ name }}.t_slot_callback = function (i) {
+    logger.debug({t_slot_callback: i});
+    {{ name }}.t_slot = i[0][0];
+};
+
+$({{ name }}).on('connect', function () {
+    {{ name }}.call('connect');
+    {{ name }}.signal('new_image.connect', {{ name }}.image_callback);
+    {{ name }}.signal('new_slot_image.connect', {{ name }}.slot_image_callback);
+    {{ name }}.signal('new_barcodes.connect', {{ name }}.barcodes_callback);
+    {{ name }}.signal('new_beam_slot.connect', {{ name }}.beam_slot_callback);
+    {{ name }}.signal('t_slot.connect', {{ name }}.t_slot_callback);
+    $({{ name }}).on('config_changed', function (e, cfg) {
+        {{ name }}.xr = cfg['x_range'];
+        {{ name }}.yt = cfg['beam']['target_y'];
+        {{ name }}.ds = cfg['broadcast']['downsample'];
+    });
+});
+
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro body(name) -%}
+<div>Beam Slot: <span id="{{ name }}_beam_slot_label"></span></div>
+<button id="{{ name }}_start_streaming" onclick="{{ name }}.call('start_streaming');">Start streaming</button>
+<button id="{{ name }}_stop_streaming" onclick="{{ name }}.call('stop_streaming');">Stop streaming</button>
+<button id="{{ name }}_save_frame" onclick="{{ name }}.call('save_frame');">Save frame</button>
+<div id="{{ name }}_frame_container">
+    <img id="{{ name }}_frame" style="position: absolute; z-index: -10"></img>
+    <canvas id="{{ name }}_frame_overlay" style="position: relative;"></canvas>
+</div>
+<ul id="{{ name }}_barcode_list">
+</ul>
+<ul id="{{ name }}_slot_image_list">
+</ul>
+{%- endmacro %}
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    </head>
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</head>

@@ -1,0 +1,238 @@
+{% import 'base.html' as base %}
+
+{% macro head(name) -%}
+<script src="{{url_for(name + '.static', filename='js/d3.js')}}" charset="utf-8"></script>
+<script src="{{url_for(name + '.static', filename='js/c3.js')}}"></script>
+<link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/c3.css')}}" />
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro js(name) -%}
+//{{ name }}.signal_container_blacklist.push("new_image");
+//{{ name }}.signal_container_blacklist.push("new_stats");
+
+$(function () {
+    {{ name }}.stats_data = {
+        'focus': [], 'std': [], 'time': []};
+    {{ name }}.stats_plot = c3.generate({
+        bindto: '#{{ name + '_stats_plot' }}',
+        data: {
+            xs: {'focus': 'time', 'std': 'time'},
+            json: {{ name }}.stats_data,
+            axes: {
+                focus: 'y',
+                std: 'y2',
+            },
+        },
+        axis: {
+            x: {
+                show: false,
+            },
+            y: {
+                label: 'focus',
+                show: true,
+                tick: {format: d3.format(".5s")},
+            },
+            y2: {
+                label: 'std',
+                show: true,
+            },
+        },
+        point: {
+            show: false,
+        },
+        transition: {
+            duration: 0,
+        },
+        interaction: {enabled: false},
+    });
+});
+
+
+
+$({{ name }}).on('connect', function () {
+    {{ name }}.frame_sel = $("#{{ name }}_frame");
+    {{ name }}.frame_elem = document.getElementById("{{ name }}_frame");
+    {{ name }}.frame_overlay = true;
+    {{ name }}.call('connect');
+    $({{ name }}).on('config_changed', function (e, cfg) {
+        {{ name }}.update_montage_canvas(cfg);
+        // write out current session name
+        if (cfg.coarse_montage != undefined) {
+            if (cfg.coarse_montage.name != undefined) {
+                $("#{{ name }}_session_name").text(
+                    "Current session: " + cfg.coarse_montage.name);
+            };
+        };
+    });
+    {{ name }}.signal('new_image.connect', {{ name }}.update_montage);
+    {{ name }}.signal('new_tile.connect', {{ name }}.draw_tile);
+    {{ name }}.signal('new_stats.connect', {{ name }}.update_stats);
+    $("#{{ name }}_frame_overlay_toggle").change(function (e) {
+        if ($(this).is(':checked')) {
+            {{ name }}.frame_overlay = true;
+        }
+        else {
+            {{ name }}.frame_overlay = false;
+        }
+    });
+});
+
+{{ name }}.update_stats = function (stats) {
+    var time = stats[0][0][0];
+    var focus = stats[0][0][1];
+    var std = stats[0][0][2];
+    {{ name }}.stats_data['time'].push(time);
+    {{ name }}.stats_data['focus'].push(focus);
+    {{ name }}.stats_data['std'].push(std);
+    while ({{ name }}.stats_data['time'].length > 150) {
+        {{ name }}.stats_data['time'].shift();
+        {{ name }}.stats_data['focus'].shift();
+        {{ name }}.stats_data['std'].shift();
+    };
+    if (document.visibilityState == 'visible') {
+        {{ name }}.stats_plot.load({
+            json: {{ name }}.stats_data,
+        });
+    };
+    var canvas = $("#{{ name }}_coarse_montage");
+    var context = canvas[0].getContext("2d");
+    {{ name }}.montage_canvas_context = context;
+};
+
+{{ name }}.update_montage_canvas = function (cfg) {
+    var size = cfg.coarse_montage.size;
+    var width = size[1] * 20;
+    var height = size[0] * 20;
+    var name = cfg.coarse_montage.name;
+    var canvas = $("#{{ name }}_coarse_montage");
+    var context = canvas[0].getContext("2d");
+    if (name != canvas.text) { 
+        context.clearRect(0, 0, canvas[0].width, canvas[0].height);
+        canvas.text = name;
+    }
+    if (width != canvas[0].width) {
+        console.log("Canvas width changed to " + width);
+        canvas[0].setAttribute('width', width);
+    }
+    if (height != canvas[0].height) {
+        console.log("Canvas height changed to " + height);
+        canvas[0].setAttribute('height', height);
+    }
+    {{ name }}.montage_canvas_context = context;
+};
+
+{{ name }}.update_montage = function(i) {
+    //logger.debug({image_callback: i});
+    {{ name }}.last_image = i[0][0][0]
+    //s = $("#{{ name }}_frame");
+    {{ name }}.frame_sel.attr("src", "data:image/png;base64, " + i[0][0][0]);
+    {{ name }}.frame_sel.one("load", function () {
+        {{ name }}.add_image(i);
+    }).each(function () {
+        if (this.complete) $(this).load();
+    });
+};
+
+{{ name }}.draw_tile = function(i) {
+    if (document.visibilityState != 'visible') return;
+    if (!{{ name }}.frame_overlay) return;
+    tile = i[0][0];
+    if (tile.length == 0) return;
+    r = tile.meta.row - 1;
+    c = tile.meta.col - 1;
+    if (!((tile.vetoed) || (tile.regrabs != 0))) return;
+    ctx = {{ name }}.montage_canvas_context;
+    ctx.beginPath();
+    ctx.lineWidth = 2;
+    if (tile.vetoed) {
+        ctx.strokeStyle = 'red';
+    } else {
+        ctx.strokeStyle = 'orange';
+    };
+    ctx.rect(20 * c, 20 * r, 20, 20);
+    ctx.stroke();
+    ctx.closePath();
+};
+
+{{ name }}.add_image = function(i) {
+    if (document.visibilityState != 'visible') return;
+    console.log({'add_image': i});
+    //var c = $("#{{ name }}_coarse_montage");
+    //var c = document.getElementById("{{ name }}_coarse_montage");
+    //var context = c[0].getContext("2d");
+    //var context = c.getContext("2d");
+    //var img = $("#{{ name }}_frame")[0];
+    //var img = document.getElementById("{{ name }}_frame");
+    r = i[0][0][1];
+    c = i[0][0][2];
+    if ((r < 0) || (c < 0)) return;
+    //minv = i[0][0][3];
+    //maxv = i[0][0][4];
+    //meta = i[0][0][5];
+    //console.log({'add_image': {'r': r, 'c': c, 'img': img}});
+    //{{ name }}.foo = i;
+    x = 20 * c;
+    y = 20 * r;
+    {{ name }}.montage_canvas_context.drawImage(
+        {{ name }}.frame_elem, x, y, 20, 20);
+    /*
+    im = {{ name }}.montage_canvas_context.getImageData(x, y, 20, 20);
+    r = maxv - minv;
+    //console.log({'meta': meta});
+    for (var j = 0; j < im.data.length; j += 4) {
+        im[j] = im[j] * r + minv;
+        im[j+1] = im[j+1] * r + minv;
+        im[j+2] = im[j+2] * r + minv;
+        //im[j+3]
+    };
+    */
+};
+
+{%- endmacro %}
+
+{% macro body(name) -%}
+<div><span id="{{ name }}_session_name">Current session:</span></div>
+</div>
+<button id="{{ name }}_start_streaming" onclick="{{ name }}.call('start_streaming')">Start Streaming</button>
+<button id="{{ name }}_start_streaming_norms" onclick="{{ name }}.call('start_streaming', ['norm', ])">Start Streaming Norms</button>
+<button id="{{ name }}_stop_streaming" onclick="{{ name }}.call('stop_streaming')">Stop Streaming</button>
+<div>
+<img id="{{ name }}_frame"></img>
+<div id="{{ name }}_stats_plot" style="width: 800px; height: 200px;"></div>
+</div>
+<div>
+<label for="{{ name }}_frame_overlay_toggle">Draw Frame Overlay</input>
+<input id="{{ name }}_frame_overlay_toggle" name="{{ name }}_frame_overlay_toggle" type="checkbox" checked="true"></input>
+</div>
+<div>
+<canvas id="{{ name }}_coarse_montage" width="200" height="200" style="border:1px solid #000000;">
+</div>
+<div>
+    <!--mini readouts here-->
+</div>
+<div>
+    <!--histogram here-->
+</div>
+{%- endmacro %}
+
+<html>
+    <head>
+        {{ base.head(name) }}
+	{{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+	{{ base.js(name) }}
+	{{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+	{{ base.css(name) }}
+	{{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</html>

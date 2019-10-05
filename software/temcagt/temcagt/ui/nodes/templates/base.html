@@ -1,0 +1,185 @@
+{% macro head(name) -%}
+    <script src="{{url_for('static', filename='js/jquery-2.1.0.js')}}" type="text/javascript"></script>
+    <script src="{{url_for('static', filename='js/jquery.json-2.4.js')}}" type="text/javascript"></script>
+    <script src="{{url_for('static', filename='js/jquery.jsonrpcclient.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/logger.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/jsoneditor.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/pnotify.custom.min.js')}}" type="text/javascript"></script>
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/jsoneditor.css')}}" />
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/pnotify.custom.min.css')}}" />
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/node.css')}}" />
+{%- endmacro %}
+
+{% macro make_js() -%}
+    <script type="text/javascript">
+        {{ caller()|safe }}
+    </script>
+{%- endmacro %}
+
+{% macro make_css() -%}
+    <style>
+        {{ caller()|safe }}
+    </style>
+{%- endmacro %}
+
+{% macro js(name) -%}
+
+logger.set_level(logger.DEBUG);
+
+var {{ name }} = {};
+{{ name }}.socket = null;
+{{ name }}.error_callback = function (e) {
+    {{ name }}.last_error = e;
+    {{ name }}.notify({
+        title: 'Error: ' + e['error'],
+        text: e['message'],
+        type: 'error',
+    });
+    logger.error({ {{ name }}_error: e});
+};
+{{ name }}.result_callback = function (r) {
+    {{ name }}.last_result = r;
+    logger.debug({ {{ name }}_result: r});
+};
+{{ name }}.call = function(fn, args, rcb, ecb, persist) {
+    rcb = (rcb === undefined) ? {{ name }}.result_callback : rcb;
+    ecb = (ecb === undefined) ? {{ name }}.error_callback : ecb;
+    args = (args === undefined) ? [] : args;
+    persist = (persist === undefined) ? false: persist;
+    logger.debug({type: 'call', fn: fn, args: args, rcb: rcb, ecb: ecb, persist: persist});
+    {{ name }}.socket.call(fn, args, rcb, ecb, persist);
+};
+
+{{ name }}.signal = function(fn, f, ecb) {
+    f = (f === undefined) ? {{ name }}.result_callback : f;
+    logger.debug({type: 'signal', fn: fn, args: [], rcb: f, ecb: ecb, persist: true});
+    {{ name }}.call(fn, [], f, ecb, true);
+};
+
+{{ name }}.config_modified = function () {
+    // set flag that config (in editor) has been modified
+    {{ name }}.config_editor.modified = true;
+    $('#{{ name }}_config .menu').css('background-color', '#ff0000');
+    logger.debug("config_modified");
+};
+
+{{ name }}.new_config = function (cfg) {
+    // new config received from python
+    // don't trigger change events
+    {{ name }}.config_editor.set(cfg);
+    {{ name }}.config_editor.node._onSort('asc');
+    // remove modified flag
+    {{ name }}.config_editor.modified = false;
+    $('#{{ name }}_config .menu').css('background-color', '#97b0f8');
+    logger.debug({new_config: cfg});
+    $({{ name }}).trigger('config_changed', cfg);
+};
+
+{{ name }}.send_config = function (cfg) {
+    // send new config over socket
+    // this should trigger 'new_config'
+    cfg = {{ name }}.config_editor.get();
+    {{ name }}.call('config', [cfg]);
+};
+
+{{ name }}.fetch_config = function () {
+    {{ name }}.call('config', [], {{ name }}.new_config);
+};
+
+{{ name }}.load_config = function (cfg) {
+    {{ name }}.call('load_config', [$('#{{ name }}_load_config').val()]);
+};
+
+{{ name }}.save_config = function (cfg) {
+    // send if modified
+    if ({{ name }}.config_editor.modified) {
+        {{ name }}.send_config();
+    };
+    {{ name }}.call('save_config', [$('#{{ name }}_save_config').val()]);
+};
+
+{{ name }}.toggle_config = function () {
+    $('#{{ name }}_config_container').toggle(500);
+};
+
+$({{ name }}).on('connect', function () {
+    //$('#{{ name + "_lock_connection" }}').prop('checked', true).change();
+    //$('#{{ name + "_lock_connection" }}').each(function(){ this.checked = true; });
+    $('#{{ name }}_config_container').hide();
+    {{ name }}.config_editor = new jsoneditor.JSONEditor(document.getElementById('{{ name }}_config'), {change: {{ name }}.config_modified});
+    {{ name }}.config_editor.modified = false;
+    {{ name }}.fetch_config();
+    {{ name }}.signal('config_changed.connect', function(r) { {{ name }}.new_config(r[0][0]) });
+});
+
+
+{{ name }}.notify = function (msg) { 
+    if (typeof(msg) != 'object') {
+        d = new Date();
+        msg = {
+            title: msg,
+            type: 'info',
+            icon: false,
+            text: d.toLocaleString(),
+        };
+    }
+    new PNotify(msg);
+};
+
+$(function () {
+    new PNotify({
+        text: '{{ name }} ui started',
+        type: 'info',
+        icon: false,
+        history: {
+            menu: true,
+            maxonscreen: 10,
+        }
+    });
+    $('#{{ name + "_lock_connection" }}').change(function (e) {
+        if ($(this).is(':checked')) {
+            $('#{{ name + "_connect" }}').prop('disabled', 'disabled');
+            $('#{{ name + "_disconnect" }}').prop('disabled', 'disabled');
+        } else {
+            $('#{{ name + "_connect" }}').prop('disabled', null);
+            $('#{{ name + "_disconnect" }}').prop('disabled', null);
+        };
+    });
+    // this creates the ONLY socket connection for the page
+    // used to then create named objects in $(socket).on('connect')
+    // check that socket hasn't already been created
+    if ({{ name }}.socket === null) {
+        {{ name }}.socket = new $.JsonRpcClient(
+            {'socketUrl': 'ws://' + window.location.host + '/{{ name }}/ws'});
+        $({{ name }}).trigger('connect');
+    };
+    // check if node is connected, if so, lock connection
+    {{ name }}.call('connected', [], function (connected) {
+        //if (connected) $('#{{ name + "_lock_connection" }}').each(function(){ this.checked = true; });
+        console.log({'connected': connected});
+        if (connected) $('#{{ name + "_lock_connection" }}').prop('checked', true).change();
+    });
+});
+
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro body(name) -%}
+<div class="config_buttons">
+<input type="checkbox" id="{{ name}}_lock_connection">Lock Connection</input>
+<button id="{{ name }}_connect" onclick="{{ name }}.call('connect'); $('#{{ name + "_lock_connection" }}').prop('checked', true).change()">Connect</button>
+<button id="{{ name }}_disconnect" onclick="{{ name }}.call('disconnect');">Disconnect</button>
+<a id="{{ name }}_toggle_config" class="config_toggle" onclick="{{ name }}.toggle_config();"><img src="{{ url_for(name + '.static', filename='imgs/gear.png') }}" /></a>
+</div>
+<div id="{{ name }}_config_container" class="config_editor">
+<button onclick="{{ name }}.send_config();">Commit</button>
+<button onclick="{{ name }}.fetch_config();">Revert</button>
+<button onclick="{{ name }}.load_config();">Load Config</button>
+<input type="text" id="{{ name }}_load_config"></input>
+<button onclick="{{ name }}.save_config();">Save Config</button>
+<input type="text" id="{{ name }}_save_config"></input>
+<div id="{{ name }}_config" class="jsoneditor" style="width: 635px; height: 400px;"></div>
+</div>
+{%- endmacro %}

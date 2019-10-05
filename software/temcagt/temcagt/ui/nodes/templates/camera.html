@@ -1,0 +1,176 @@
+{% import 'base.html' as base %}
+
+{% macro head(name) -%}
+<script src="{{url_for(name + '.static', filename='js/d3.js')}}" charset="utf-8"></script>
+<script src="{{url_for(name + '.static', filename='js/c3.js')}}"></script>
+<link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/c3.css')}}" />
+{%- endmacro %}
+
+{% macro js(name) -%}
+$(function() {
+    {{ name }}.focus_plot = c3.generate({
+        bindto: '#{{ name + "_focus_plot" }}',
+        data: {
+            columns: [['focus'], ['beam']],
+            axes: {focus: 'y', beam: 'y2'},
+        },
+        transition: {duration: 0},
+        interaction: {enabled: false},
+        legend: {show: true},
+        axis: {
+            y: {
+                tick: {format: d3.format(".5s")},
+                label: 'focus',
+            },
+            y2: {
+                show: true,
+                label: 'beam',
+            },
+        },
+    });
+    {{ name }}.focus_data = [];
+    {{ name }}.beam_data = [];
+    {{ name }}.histogram = c3.generate({
+        bindto: '#{{ name + "_histogram" }}',
+        data: {x: 'x', columns: [['x'], ['pixel value']], },
+        point: {show: false},
+        axis: {x: {tick: {count: 5, format: d3.format('.0f')}}},
+        transition: {duration: 0},
+        interaction: {enabled: false},
+        legend: {show: false},
+    });
+});
+
+
+{{ name }}.image_callback = function (i) {
+    logger.debug({image_callback: i});
+    {{ name }}.last_image = i[0][0];
+    $("#{{ name }}_frame").attr("src", "data:image/png;base64, " + i[0][0]);
+};
+
+{{ name }}.stats_callback = function (i) {
+    logger.debug({stats_callback: i});
+    {{ name }}.last_stats = i;
+    ts = new Date().getTime() / 1000.;
+    fdatum = i[0][0]['focus'];
+    draw = false;
+    if (fdatum != undefined) {
+        {{ name }}.focus_data.push(fdatum);
+        while ({{ name }}.focus_data.length > 20) {
+            {{ name }}.focus_data.shift();
+        };
+        draw = true;
+    };
+    bdatum = i[0][0]['beam'];
+    if (bdatum != undefined) {
+        {{ name }}.beam_data.push(bdatum['i']);
+        while ({{ name }}.beam_data.length > 20) {
+            {{ name }}.beam_data.shift();
+        };
+        draw = true;
+    };
+    if (draw) {
+        {{ name }}.focus_plot.load({
+            columns: [
+            ['focus'].concat({{ name }}.focus_data),
+            ['beam'].concat({{ name }}.beam_data)]
+        });
+    };
+    // update histogram
+    if (i[0][0]['histogram'] != undefined) {
+        hdata = i[0][0]['histogram'][0];
+        hx = i[0][0]['histogram'][1];
+        {{ name }}.histogram.load({
+            columns: [
+                ['x'].concat(hx),
+                ['pixel value'].concat(hdata),
+                ]
+        });
+    };
+};
+
+{{ name }}.capture = function () {
+    {{ name }}.call('single_grab');
+};
+
+{{ name }}.check_cooling = function (result) {
+    logger.debug({ {{ name }}_check_cooling: result});
+    if (result === undefined) {
+        // poll cooling
+        return {{ name }}.call('poll_cooling', [], {{ name }}.check_cooling);
+    };
+    // "TemperatureStatus": Cooler Off, Stablised, Cooling, Drift, Not Stablised, Fault
+    if (!("TemperatureStatus" in result)) {
+        {{ name }}.error_callback(
+            {
+                "error": "Invalid TemperatureStatus",
+                "message": "TemperatureStatus not in cooling info" + result});
+        return;
+    };
+    txt = result["SensorTemperature"].toFixed(2);
+    obj = $("#{{ name }}_cooled");
+    color = "lightgreen";
+    status = result["TemperatureStatus"];
+    if (status != "Stabilised") {
+        switch (status) {
+            case "Cooler Off":
+                color = "red";
+                break;
+            case "Cooling":
+                color = "yellow";
+                break;
+            case "Drift":
+            case "Not Stabilised":
+            case "Fault":
+                color = "orange";
+                break;
+        };
+        // if not cooled, poll again in T seconds
+        setTimeout({{ name }}.check_cooling, 1000);
+    }
+    obj.css('background-color', color);
+    obj.text(txt);
+    return;  // if cooled, stop polling
+};
+
+$({{ name }}).on('connect', function () {
+    {{ name }}.call('connect');
+    {{ name }}.signal('new_image.connect', {{ name }}.image_callback);
+    {{ name }}.signal('new_stats.connect', {{ name }}.stats_callback);
+});
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro body(name) -%}
+<button id="{{ name }}_capture" onclick="{{ name }}.capture();">{{ name }} Capture</button>
+<button id="{{ name }}_start_streaming" onclick="{{ name }}.call('start_streaming');">Start Streaming</button>
+<button id="{{ name }}_stop_streaming" onclick="{{ name }}.call('stop_streaming');">Stop Streaming</button>
+<button id="{{ name }}_check_cooling" onclick="{{ name }}.check_cooling()">Check cooling</button>
+<span id="{{ name }}_cooled">Cooling</span>
+<img id="{{ name }}_frame"></img>
+<div id="{{ name }}_focus_plot" class="epoch category10" style="width: 400px; height: 200px;"></div>
+<div id="{{ name }}_histogram" class="epoch category10" style="width: 400px; height: 200px;"></div>
+{%- endmacro %}
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</head>

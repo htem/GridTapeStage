@@ -1,0 +1,239 @@
+{% import 'statefulbase.html' as base %}
+
+{% macro head(name) -%}
+<script src="{{url_for(name + '.static', filename='js/d3.js')}}" charset="utf-8"></script>
+<script src="{{url_for(name + '.static', filename='js/roi_definer.js')}}" charset="utf-8"></script>
+<link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/roi_definer.css')}}" />
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro js(name) -%}
+
+$({{ name }}).on('connect', function () {
+    //{{ name }}.call('connect');
+    /*
+    {{ name }}.signal('new_images.connect', {{ name }}.image_callback);
+    */
+    {{ name }}.signal('new_position.connect', function (r) {
+        p = r[0][0];
+        logger.debug({'new_position': p});
+        $('#pos_x').val(p.x / 1000000.);
+        $('#pos_x').removeClass('pending');
+        $('#pos_y').val(p.y / 1000000.);
+        $('#pos_y').removeClass('pending');
+        $({{ name }}).trigger('new_position', p);
+    });
+
+    $({{ name }}).on('config_changed', function (e, cfg) {
+        if (!$('#notes').hasClass('pending')) {
+            // TODO move to old_notes
+            $('#notes').val(cfg.session.notes);
+        };
+        // TODO move to old session name
+        $('#session_name').val(cfg.session.name);
+        $('#session_name').removeClass('pending');
+        roi = cfg.montage.roi;
+        $('#roi_width').val(ROIResolver.resolve('width', roi));
+        $('#roi_height').val(ROIResolver.resolve('height', roi));
+        $('#roi_width').removeClass('pending');
+        $('#roi_height').removeClass('pending');
+        // $('#session_name').css('color', 'black');
+    });
+
+    {{ name }}.roi_definer = new ROIDefiner('#roi_div');
+    {{ name }}.roi_definer.connect({{ name }});
+    {{ name }}.roi_definer.bind_arrow_keys();
+});
+
+
+var ncb = null;
+function queue_notes (n) {
+    if (ncb != null) {
+        clearTimeout(ncb);
+        ncb = null;
+    };
+    ncb = setTimeout(function () {
+        {{ name }}.call('config', [{'session': {'notes': n}}],
+            function (r) {
+                $('#notes').removeClass('pending');
+                clearTimeout(ncb);
+                ncb = null;
+            }, {{ name }}.error_callback);
+    }, 1000);
+};
+
+$(function() {
+    $('#roi_action').change(function () {
+        action = $(this).val();
+        switch (action) {
+            case 'move':
+                {{ name }}.roi_definer.click_action = 'new_position';
+                {{ name }}.roi_definer.landmark = '';
+                break;
+            case 'center':
+            case 'left':
+            case 'right':
+            case 'top':
+            case 'bottom':
+            case 'top_left':
+            case 'top_right':
+            case 'bottom_left':
+            case 'bottom_right':
+                {{ name }}.roi_definer.click_action = 'set_roi';
+                {{ name }}.roi_definer.landmark = action;
+                break;
+            default:
+                logger.error("Unknown roi action: " + action);
+        };
+    });
+    $('#notes').on('change keyup paste', function (e) {
+        queue_notes(this.value);
+        $('#notes').addClass('pending');
+    });
+
+    $('#session_name').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            {{ name }}.call('config', [{'session': {'name': this.value}}]);
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+
+    $('#pos_x, #pos_y, #roi_width, #roi_height').on('change', function (e) {
+        $(this).addClass('pending');
+    });
+    $('#roi_width, #roi_height').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            if ($('#roi_height').hasClass('pending'))
+                {{ name }}.call('set_roi', ['height', parseInt($('#roi_height').val())]);
+            if ($('#roi_width').hasClass('pending'))
+                {{ name }}.call('set_roi', ['width', parseInt($('#roi_width').val())]);
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+    $('#pos_x, #pos_y').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            x = $('#pos_x').hasClass('pending')
+                ? 1000000 * $('#pos_x').val() : null;
+            y = $('#pos_y').hasClass('pending')
+                ? 1000000 * $('#pos_y').val() : null;
+            {{ name }}.socket.call('move', [x, y]);
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+});
+
+{%- endmacro %}
+
+{% macro body(name) -%}
+<div>
+    <label for="session_name">Session Name:</label>
+    <input name="session_name" id="session_name"></input>
+</div>
+<br />
+<label for="pos_x">X</label>
+<input id="pos_x" name="pos_x" class="position_input" type="number" step=0.01></input>
+<label for="pos_y">Y</label>
+<input id="pos_y" name="pos_y" class="position_input" type="number" step=0.01></input>
+<br />
+<button id="{{ name }}_kill" onclick="{{ name }}.call('kill', []);">Kill</button>
+<button id="{{ name }}_capture" onclick="{{ name }}.capture();">Capture</button>
+<button id="{{ name }}_grab_bg" onclick="{{ name }}.call('grab_background');">Grab Background</button>
+<button id="{{ name }}_clear_bg" onclick="{{ name }}.call('clear_background');">Clear Background</button>
+<!--
+<button id="{{ name }}_start_cooling" onclick="{{ name }}.start_cooling();">Start Cooling</button>
+<button id="{{ name }}_check_cooling" onclick="{{ name }}.check_cooling()">Check cooling</button>
+<button id="{{ name }}_stop_cooling" onclick="{{ name }}.stop_cooling();">Stop Cooling</button>
+<button id="{{ name }}_start_streaming" onclick="{{ name }}.call('start_streaming');">Start Streaming</button>
+<button id="{{ name }}_stop_streaming" onclick="{{ name }}.call('stop_streaming');">Stop Streaming</button>
+-->
+<button id="{{ name }}_bake" onclick="{{ name }}.call('bake');">Bake</button>
+<button id="{{ name }}_montage" onclick="{{ name }}.call('montage');">Montage</button>
+<br />
+<!--
+<span id="{{ name }}_cam1_cooled">1</span>
+<span id="{{ name }}_cam2_cooled">2</span>
+<span id="{{ name }}_cam3_cooled">3</span>
+<span id="{{ name }}_cam4_cooled">4</span>
+<br />
+-->
+<!--
+<button id="{{ name }}_calibrate_x" onclick="{{ name }}.call('calibrate', ['x']);">Calibrate X</button>
+<button id="{{ name }}_calibrate_y" onclick="{{ name }}.call('calibrate', ['y']);">Calibrate Y</button>
+<button id="{{ name }}_find_ref_x" onclick="{{ name }}.call('find_ref', ['x']);">Find Ref X</button>
+<button id="{{ name }}_find_ref_y" onclick="{{ name }}.call('find_ref', ['y']);">Find Ref Y</button>
+<button id="{{ name }}_zero_x" onclick="{{ name }}.call('set_position', [0]);">Zero X</button>
+<button id="{{ name }}_zero_y" onclick="{{ name }}.call('set_position', [null, 0]);">Zero Y</button>
+-->
+<button id="{{ name }}_poll_position" onclick="{{ name }}.call('poll_position');">Poll Position</button>
+<button id="{{ name }}_goto_zero" onclick="{{ name }}.call('move', [0.0, 0.0]);">Goto Zero</button>
+<button id="{{ name }}_jump_left" onclick="{{ name }}.call('jump', ['left']);">Jump Left</button>
+<button id="{{ name }}_jump_right" onclick="{{ name }}.call('jump', ['right']);">Jump Right</button>
+<br />
+<span id="roi_div"></span>
+<img id="{{ name }}_frame"></img>
+<br />
+<button id="clear_roi" class="clear_roi" onclick="{{ name }}.call('clear_roi');">Clear ROI</button>
+<br />
+<span id="roi_shortcuts">
+    <button id="set_top_left" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['top_left']);">Top Left</button>
+<button id="set_top" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['top']);">Top</button>
+<button id="set_top_right" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['top_right']);">Top Right</button>
+<br />
+<button id="set_left" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['left']);">Left</button>
+<button id="set_center" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['center']);">Center</button>
+<button id="set_right" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['right']);">Right</button>
+<br />
+<button id="set_bottom_left" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['bottom_left']);">Bottom Left</button>
+<button id="set_bottom" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['bottom']);">Bottom</button>
+<button id="set_bottom_right" class="roi_shortcut" onclick="{{ name }}.call('set_roi', ['bottom_right']);">Bottom Right</button>
+</span>
+<select id="roi_action">
+    <option value="move" selected="selected">Move</option>
+    <option value="center">Center</option>
+    <option value="left">Left</option>
+    <option value="right">Right</option>
+    <option value="top">Top</option>
+    <option value="bottom">Bottom</option>
+    <option value="top_left">Top Left</option>
+    <option value="top_right">Top Right</option>
+    <option value="bottom_left">Bottom Left</option>
+    <option value="bottom_right">Bottom Right</option>
+</select>
+<label for="roi_width">Width</label>
+<input id="roi_width" name="roi_width" class="roi_input" type="number" step=0.01></input>
+<label for="roi_height">Height</label>
+<input id="roi_height" name="roi_height" class="roi_input" type="number" step=0.01></input>
+<br />
+<div>
+    <label for="notes">Notes:</label>
+    <textarea id="notes" name="notes" class="notes"></textarea>
+</div>
+<!--
+    move, poll_position, cooling_info, etc...
+-->
+{%- endmacro %}
+
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</head>

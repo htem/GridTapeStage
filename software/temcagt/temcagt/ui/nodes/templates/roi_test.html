@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+<head>
+    <script src="{{url_for('static', filename='js/jquery-2.1.0.js')}}" type="text/javascript"></script>
+    <script src="{{url_for('static', filename='js/jquery.json-2.4.js')}}" type="text/javascript"></script>
+    <script src="{{url_for('static', filename='js/jquery.jsonrpcclient.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/jsoneditor.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/pnotify.custom.min.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/d3.js')}}" charset="utf-8"></script>
+    <script src="{{url_for(name + '.static', filename='js/roi_definer.js')}}" charset="utf-8"></script>
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/roi_definer.css')}}" />
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/jsoneditor.css')}}" />
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/pnotify.custom.min.css')}}" />
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/node.css')}}" />
+    <script>
+        var roi_definer;
+        $(function() {
+            roi_definer = new ROIDefiner('body');
+            $(roi_definer).on('new_position', function (e, x, y) {
+                logger.info({'new_position': [x, y]});
+                roi_definer.set_position(x, y);
+            });
+
+            $(roi_definer).on('set_roi', function (e, x, y, landmark) {
+                logger.info({'set_roi': [landmark, x, y]});
+            });
+
+            // drop-down for action selection
+            $('#roi_action').change(function () {
+                action = $(this).val();
+                logger.info({'action': action});
+                switch (action) {
+                    case 'move':
+                        roi_definer.click_action = 'move';
+                        roi_definer.landmark = '';
+                        break;
+                    case 'left':
+                    case 'right':
+                    case 'top':
+                    case 'bottom':
+                    case 'top_left':
+                    case 'top_right':
+                    case 'bottom_left':
+                    case 'bottom_right':
+                        roi_definer.click_action = 'set_roi';
+                        roi_definer.landmark = action;
+                        break;
+                    default:
+                        logger.error("Unknown roi action: " + action);
+                };
+            });
+        });
+    </script>
+</head>
+<body>
+    <!-- drop-down for action selection -->
+    <select id="roi_action">
+        <option value="move" selected="selected">Move</option>
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+        <option value="top">Top</option>
+        <option value="bottom">Bottom</option>
+        <option value="top_left">Top Left</option>
+        <option value="top_right">Top Right</option>
+        <option value="bottom_left">Bottom Left</option>
+        <option value="bottom_right">Bottom Right</option>
+    </select>
+</body>
+</html>

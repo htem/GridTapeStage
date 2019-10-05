@@ -1,0 +1,1 @@
+{"notification": {"enable": false}, "find_slot": {"post_widen_delay": 0.1}, "align_beam": {"post_widen_delay": 0.1}, "move_slot": {"led_delay": 0.001, "target": {"id": 75}}, "slot": {"rois": [{"width": 50000, "height": 50000, "center": [0, 0]}]}}

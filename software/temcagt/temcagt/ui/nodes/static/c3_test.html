@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+        <script src="js/jquery-2.1.0.js"></script>
+        <script src="js/d3.js" charset="utf-8"></script>
+        <script src="js/c3.js"></script>
+        <link rel="stylesheet" type="text/css" href="css/c3.css" />
+        <script>
+            (function () {
+                var DataGen = function(dims) {
+                    this.dims = dims;
+                    this.timestamp = ((new Date()).getTime() / 1000)|0;
+                };
+
+                DataGen.prototype.rand = function() {
+                    return parseInt(Math.random() * 100) + 50;
+                };
+
+                DataGen.prototype.next = function() {
+                    var item = [];
+                    for (var i = 0; i < this.dims; i++) {
+                        item.push({
+                            time: this.timestamp,
+                            y: this.rand(),
+                        });
+                        this.timestamp++;
+                    }
+                    return item;
+                };
+
+                DataGen.prototype.history = function(n) {
+                    if (typeof(n) != 'number' || !n) {
+                        n = 60;
+                    }
+
+                    var history = [];
+                    for (var k = 0; k < this.dims; k++) {
+                        var items = [];
+                        for (var i = 0; i < n; i++) {
+                            items.push(this.next());
+                        }
+                        history.push({values: items});
+                    }
+
+                    return history;
+                };
+
+                window.DataGen = DataGen;
+            })();
+        </script>
+    </head>
+    <html>
+        <div id="area" style="width: 400px; height: 200px;"></div>
+        <script>
+            var chart = null;
+            $(function() {
+                var data = new DataGen(2);
+                var d1 = [];
+                var d2 = [];
+
+                chart = c3.generate({
+                    bindto: '#area',
+                    data: {
+                        columns: [
+                        ['data1'].concat(d1),
+                        ['data2'].concat(d2),
+                        ]
+                    },
+                    transition: {
+                        duration: 100,
+                    }
+                });
+                setInterval(function () {
+                    if (d1.length < 10) {
+                        d1.push(parseInt(Math.random() * 100) + 50);
+                        d2.push(parseInt(Math.random() * 100) + 50);
+                        chart.load({
+                            columns: [
+                            ['data1'].concat(d1),
+                            ['data2'].concat(d2),
+                            ]
+                        });
+                    } else {
+                        chart.flow({
+                            columns: [
+                            ['data1', parseInt(Math.random() * 100) + 50],
+                            ['data2', parseInt(Math.random() * 100) + 50],
+                            ],
+                            duration: 50,
+                        });
+                    };
+                    /*
+                    if (d1.length > 50) {
+                        d1 = d1.slice(d1.length - 50);
+                    };
+                    if (d2.length > 50) {
+                        d2 = d2.slice(d2.length - 50);
+                    };
+                    chart.load({
+                        columns: [
+                        ['data1'].concat(d1),
+                        ['data2'].concat(d2),
+                        ]
+                    });
+                    */
+                }, 250);
+                /*
+                var chart = $('#area').epoch({
+                    type: 'time.line',
+                    data: data.history(),
+                    axes: ['left', 'bottom', 'right'],
+                    fps: 10,
+                });
+
+                setInterval(function () { chart.push(data.next()); }, 1000);
+                chart.push(data.next());
+                */
+            });
+        </script>
+    </html>
+</html>

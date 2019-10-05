@@ -1,0 +1,36 @@
+rect.slot {
+    stroke: green;
+    fill: rgba(0, 0, 0, 0);
+}
+
+rect.roi {
+    stroke: blue;
+    fill: rgba(0, 0, 0, 0);
+}
+
+rect.tile {
+    fill: rgba(0, 0, 0, 0);
+}
+
+rect.fov {
+    fill: rgba(0, 0, 0, 0);
+    stroke: rgb(0, 255, 0);
+}
+
+circle.position {
+    fill: rgb(0, 255, 0);
+}
+
+.axis {
+    shape-rendering: crispEdges;
+}
+
+.axis line, .axis path {
+    fill: none;
+    stroke: #000;
+    stroke-dasharray: 2,5;
+}
+
+.roi_shortcut {
+    width: 100px;
+}

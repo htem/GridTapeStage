@@ -1,0 +1,146 @@
+{% import 'base.html' as base %}
+
+{% macro head(name) -%}
+{%- endmacro %}
+
+{% macro js(name) -%}
+$(function() {
+});
+
+{{ name }}.update_state_display = function (state) {
+    obj = $("#{{ name }}_state");
+    obj.text(state);
+    if (state == 'tensioned') {
+        color = 'green';
+    } else if (state == 'untensioned') {
+        color = 'red';
+    } else {
+        color = 'white';
+    };
+    obj.css('background-color', color);
+}
+
+$({{ name }}).on('connect', function () {
+    //{{ name }}.call('connect');
+    {{ name }}.signal(
+        'new_state.connect',
+        function(r) {
+            p = r[0][0];
+            logger.debug({'new_state': p});
+            {{ name }}.update_state_display(p);
+        });
+    {{ name }}.call('get_state', [], function(r) {
+        if (r == null) r = 'UNKNOWN';
+        logger.debug({'get_state_result': r});
+        {{ name }}.update_state_display(r);
+    });
+});
+
+{{ name }}.tension_tape = function () {
+    {{ name }}.call("tension_tape");
+};
+
+{{ name }}.halt = function () {
+    {{ name }}.call("halt");
+};
+
+{{ name }}.release = function () {
+    {{ name }}.call("release");
+};
+
+{{ name }}.set_led = function (value) {
+    {{ name }}.call("set_led", [value, ]);
+};
+
+{{ name }}.untension_tape = function () {
+    {{ name }}.call("untension_tape");
+};
+
+{{ name }}.adjust_tension = function () {
+    {{ name }}.call("adjust_to_tension");
+};
+
+{{ name }}.run_reels = function(speed) {
+    if (speed === undefined) {
+        {{ name }}.call("run_reels");
+    } else {
+        {{ name }}.call("run_reels", [speed, ]);
+    };
+};
+
+{{ name }}.stop_reels = function() {
+    {{ name }}.call("stop_reels");
+};
+
+{{ name }}.move_tape = function (auto_tension) {
+    if (auto_tension === undefined) {
+        auto_tension = true;
+    };
+    d = $("#move_distance").val();
+    // TODO add callback to read_tension
+    {{ name }}.call("move_tape", [parseFloat(d), auto_tension]);
+};
+
+{{ name }}.read_tension = function (result) {
+    if (result === undefined) {
+        return {{ name }}.call(
+            'read_tension', [10, ], {{ name }}.read_tension);
+    };
+    tension = result;
+    console.log({"read_tension": result});
+    cfg = {{ name }}.config_editor.get();
+    half_range = cfg.tension_range / 2.;
+    delta_tension = tension - cfg.tension_target;
+    if (Math.abs(delta_tension) > half_range) {
+        color = 'red';
+    } else {
+        color = 'green';
+    };
+    obj = $("#{{ name }}_tension");
+    obj.text(tension);
+    obj.css('background-color', color);
+};
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro body(name) -%}
+<span id="{{ name }}_state">Unknown</span>
+<button id="{{ name }}_led_on" onclick="{{ name }}.set_led(0)">Led On</button>
+<button id="{{ name }}_led_off" onclick="{{ name }}.set_led(255)">Led Off</button>
+<button id="{{ name }}_run_reels" onclick="{{ name }}.run_reels()">Run Reels</button>
+<button id="{{ name }}_stop_reels" onclick="{{ name }}.stop_reels()">Stop Reels</button>
+<button id="{{ name }}_halt" onclick="{{ name }}.halt()">Halt</button>
+<button id="{{ name }}_release" onclick="{{ name }}.release()">Release</button>
+<button id="{{ name }}_read_tension" onclick="{{ name }}.read_tension()">Read Tension</button>
+<span id="{{ name }}_tension">Unknown</span>
+<button id="{{ name }}_tension_tape" onclick="{{ name }}.tension_tape();">Tension Tape</button>
+<button id="{{ name }}_untension_tape" onclick="{{ name }}.untension_tape()">Untension Tape</button>
+<button id="{{ name }}_adjust_tension" onclick="{{ name }}.adjust_tension()">Adjust Tension</button>
+<button id="{{ name }}_move_tape" onclick="{{ name }}.move_tape()">Move Tape</button>
+<button id="{{ name }}_move_tape_wo_tensioning" onclick="{{ name }}.move_tape(false)">Move Tape wo tensioning</button>
+<label for="move_distance">Move Distance</label>
+<input id="move_distance" name="move_distance" class="distance_input" type="number" step=0.01></input>
+{%- endmacro %}
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</head>

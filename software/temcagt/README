@@ -1,0 +1,5 @@
+Building on Ubuntu 12.04
+
+Manual installation
+- zeromq (version > 3: 4.0.4) [requires rebuilding pyzmq]
+- pylibtiff (https://code.google.com/p/pylibtiff/)

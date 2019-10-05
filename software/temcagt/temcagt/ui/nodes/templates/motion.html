@@ -1,0 +1,85 @@
+{% import 'base.html' as base %}
+
+{% macro head(name) -%}
+    <script src="{{url_for(name + '.static', filename='js/knockout-3.1.0.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/knockout.range.js')}}" type="text/javascript"></script>
+    <script src="{{url_for(name + '.static', filename='js/d3.js')}}" charset="utf-8"></script>
+    <script src="{{url_for(name + '.static', filename='js/roi_definer.js')}}" charset="utf-8"></script>
+    <link rel="stylesheet" type="text/css" href="{{url_for(name + '.static', filename='css/roi_definer.css')}}" />
+ 
+{%- endmacro %}
+
+{% macro js(name) -%}
+$({{ name }}).on('connect', function () {
+    {{ name }}.signal(
+        'new_position.connect',
+        function(r) {
+            p = r[0][0];
+            logger.debug({'new_position': p});
+            $('#pos_x').val(p.x / 1000000.);
+            $('#pos_x').removeClass('pending');
+            $('#pos_y').val(p.y / 1000000.);
+            $('#pos_y').removeClass('pending');
+            $({{ name }}).trigger('new_position', p);
+        });
+    {{ name }}.roi_definer = new ROIDefiner('#roi_div');
+    {{ name }}.roi_definer.connect({{ name }}, ['position']);
+});
+
+$(function () {
+    $('#pos_x, #pos_y').on('change', function (e) {
+        $(this).addClass('pending');
+    });
+    $('#pos_x, #pos_y').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            x = $('#pos_x').hasClass('pending')
+                ? 1000000 * $('#pos_x').val() : null;
+            y = $('#pos_y').hasClass('pending')
+                ? 1000000 * $('#pos_y').val() : null;
+            {{ name }}.socket.call('move', [x, y]);
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+});
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro body(name) -%}
+<label for="pos_x">X</label>
+<input id="pos_x" name="pos_x" class="position_input" type="number" step=0.01></input>
+<label for="pos_y">Y</label>
+<input id="pos_y" name="pos_y" class="position_input" type="number" step=0.01></input>
+<br />
+<button id="{{ name }}_calibrate_x" onclick="{{ name }}.call('calibrate', ['x']);">Calibrate X</button>
+<button id="{{ name }}_calibrate_y" onclick="{{ name }}.call('calibrate', ['y']);">Calibrate Y</button>
+<button id="{{ name }}_find_ref_x" onclick="{{ name }}.call('find_ref', ['x']);">Find Ref X</button>
+<button id="{{ name }}_find_ref_y" onclick="{{ name }}.call('find_ref', ['y']);">Find Ref Y</button>
+<button id="{{ name }}_poll_position" onclick="{{ name }}.call('poll_position');">Poll Position</button>
+<button id="{{ name }}_zero_x" onclick="{{ name }}.call('set_position', [0]);">Zero X</button>
+<button id="{{ name }}_zero_y" onclick="{{ name }}.call('set_position', [null, 0]);">Zero Y</button>
+<button id="{{ name }}_goto_zero" onclick="{{ name }}.call('move', [0.0, 0.0]);">Goto Zero</button>
+<br />
+<div id="roi_div"></div>
+{%- endmacro %}
+
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</head>

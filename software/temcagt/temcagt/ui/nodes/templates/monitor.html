@@ -1,0 +1,81 @@
+{% import 'base.html' as base %}
+
+{% macro head(name) -%}
+<script src="{{url_for(name + '.static', filename='js/d3.js')}}" charset="utf-8"></script>
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro js(name) -%}
+
+{{ name }}.image_callback = function (i) {
+    logger.debug({image_callback: i});
+    {{ name }}.last_image = i[0];
+    idata = "data:image/png;base64, " + i[0];
+    $("#{{ name }}_frame").attr("src", idata);
+};
+
+$({{ name }}).on('connect', function () {
+    {{ name }}.call('connect');
+    {{ name }}.signal('new_images.connect', {{ name }}.image_callback);
+    {{ name }}.signal('new_position.connect', function (r) {
+        p = r[0][0];
+        logger.debug({'new_position': p});
+        $('#pos_x').val(p.x / 1000000.);
+        $('#pos_y').val(p.y / 1000000.);
+        $({{ name }}).trigger('new_position', p);
+    });
+
+    $({{ name }}).on('config_changed', function (e, cfg) {
+        $('#notes').val(cfg.session.notes);
+        $('#session_name').val(cfg.session.name);
+    });
+});
+
+
+$(function() {
+  // remove connect/disconnect
+  $("#{{ name }}_connect").remove();
+  $("#{{ name }}_disconnect").remove();
+});
+
+{%- endmacro %}
+
+{% macro body(name) -%}
+<div>
+    <label for="session_name">Session Name:</label>
+    <input name="session_name" id="session_name"></input>
+</div>
+<br />
+<label for="pos_x">X</label>
+<input id="pos_x" name="pos_x" class="position_input" type="number" step=0.01></input>
+<label for="pos_y">Y</label>
+<input id="pos_y" name="pos_y" class="position_input" type="number" step=0.01></input>
+<br />
+<img id="{{ name }}_frame"></img>
+<br />
+<div>
+    <label for="notes">Notes:</label>
+    <textarea id="notes" name="notes" class="notes"></textarea>
+</div>
+{%- endmacro %}
+
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</head>

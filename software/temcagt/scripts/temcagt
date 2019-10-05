@@ -1,0 +1,245 @@
+#!/bin/bash
+# Script to run temcagt nodes as daemons
+
+# TODO add verbose flag and debugging
+DEBUG=1
+SEVERITY=""
+
+if [[ $# < 1 ]]; then
+    echo "Must supply at least 1 argument"
+    exit 1
+fi
+
+
+NODE_PRIORITY="motion camera montager tape tapecamera scope compute control ui"
+
+VALID_CMDS="compute scope tape tapecamera motion montager control camera ui kill kill9 status start"
+if [[ "`echo $VALID_CMDS | grep $1`" == "" ]]; then
+    echo "Invalid command: '$1' not in [$VALID_CMDS]"
+    exit 1
+fi
+
+VEFN="$HOME/.virtualenvs/temcagt/bin/activate"
+if [ -e "$VEFN" ]; then
+    source $VEFN
+else
+    echo "Unable to find temcagt virtualenvironment[$VEFN], trying anyway"
+fi
+
+# make sure base directory exists
+if [ ! -e "$HOME/.temcagt" ]; then
+    mkdir -p "$HOME/.temcagt"
+fi
+
+# make sure config directory exists
+CONFIG_DIR="$HOME/.temcagt/config"
+if [ ! -e "$CONFIG_DIR" ]; then
+    mkdir -p "$CONFIG_DIR"
+fi
+
+# make sure pids directory exists
+PID_DIR="$HOME/.temcagt/pids"
+if [ ! -e "$PID_DIR" ]; then
+    mkdir -p $PID_DIR
+fi
+
+LOG_DIR="$HOME/.temcagt/logs"
+if [ ! -e "$LOG_DIR" ]; then
+    mkdir -p $LOG_DIR
+fi
+
+PID_FILE=""
+PID=""
+
+RESULT=""
+
+
+function debug() {
+    if [ $DEBUG -eq 1 ];
+    then
+        echo $@
+    fi
+}
+
+
+function list_running_nodes() {
+    RESULT=""
+    for NODE in $NODE_PRIORITY; do
+#        debug "Checking for $PID_DIR/$NODE.pid"
+        if [ -e "$PID_DIR/$NODE.pid" ]; then
+            if [[ "$RESULT" == "" ]]; then
+                RESULT="$NODE"
+            else
+                RESULT="$NODE $RESULT"
+            fi
+        fi
+    done
+    debug "Found running nodes: $RESULT"
+}
+
+
+function list_available_nodes() {
+    RESULT=""
+    for NODE in $NODE_PRIORITY; do
+#        debug "Checking for $CONFIG_DIR/$NODE.json"
+        if [ -e "$CONFIG_DIR/$NODE.json" ]; then
+            if [[ "$RESULT" == "" ]]; then
+                RESULT="$NODE"
+            else
+                RESULT="$RESULT $NODE"
+            fi
+        fi
+    done
+    debug "Found available nodes: $RESULT"
+}
+
+
+function find_pid() {
+    debug "find_pid $1"
+    # generate pid file name
+    PID_FILE="$PID_DIR/$1.pid"
+    # check if it exists
+    if [ -e "$PID_FILE" ]; then
+        debug "found pid file $PID_FILE"
+        # read pid
+        PID=`cat $PID_FILE 2>/dev/null`
+        debug "checking if $PID is running"
+        # check if pid is running
+        ps -p $PID > /dev/null 2>&1
+        if [[ $? = 0 ]]; then
+            # command already running
+            debug "temcagt $1 is running in pid: $PID"
+            return 0
+        else
+            # stale pid file
+            echo "removing stale pid file $PID_FILE with pid: $PID"
+            rm $PID_FILE
+            PID=""
+        fi
+    else
+        PID=""
+    fi
+}
+
+
+function roll_logs() {
+    LOG_FILE="$1"
+    debug "Rolling logs for $LOG_FILE"
+    I=8  # at max save up to .9 [10 previous logs]
+    while ((I >= 0)); do
+        # if file.I exists moves to file.I+1
+        if [ -e $LOG_FILE.$I ]; then
+            debug "Moving $LOG_FILE.$I to $LOG_FILE.$((I + 1))"
+            mv $LOG_FILE.$I $LOG_FILE.$((I + 1))
+        fi
+        let I--
+    done
+    I=0
+    # if file exists, moves to file.0
+    if [ -e $LOG_FILE ]; then
+        debug "Moving $LOG_FILE to $LOG_FILE.$I"
+        mv $LOG_FILE $LOG_FILE.$I
+    fi
+}
+
+
+function run_process() {
+    debug "run_process $1"
+    find_pid $1
+
+    if [[ "$PID" != "" ]]; then
+        echo "temcagt $1 already running, doing nothing"
+        return 0
+    fi
+
+    SCRIPT_OUT="$LOG_DIR/$1.out"
+    SCRIPT_ERROR="$LOG_DIR/$1.err"
+    # roll logs
+    roll_logs $SCRIPT_OUT
+    roll_logs $SCRIPT_ERROR
+
+    # run command
+    echo "Running: python -m temcagt $@ > $SCRIPT_OUT 2> $SCRIPT_ERROR &"
+    nohup python -m temcagt $@ > $SCRIPT_OUT 2> $SCRIPT_ERROR &
+    # TODO check that this started?
+    # save pid
+    PID="$!"
+    echo $PID > $PID_FILE
+    echo "process running in $PID"
+    sleep 0.5  # this is to help fabric not immediately kill the process
+    return 0
+}
+
+
+function kill_process() {
+    if [[ "$1" == "" ]]; then
+        kill_process "ui"
+        kill_process "control"
+        kill_process "compute"
+        kill_process "scope"
+        kill_process "montager"
+        kill_process "motion"
+        kill_process "tape"
+        kill_process "camera"
+        return 0
+    fi
+    find_pid $1
+    if [[ "$PID" != "" ]]; then
+        echo "killing $1 in pid $PID $SEVERITY"
+        kill $SEVERITY $PID
+    fi
+    sleep 0.5
+    # now check the pid, and remove if the process is done
+    find_pid $1
+    return 0
+}
+
+function status() {
+    echo "temcagt pids are:"
+    PID_FILES=`ls $PID_DIR`
+    for PID_FILE in $PID_FILES
+    do
+        PROCESS="${PID_FILE%.*}"
+        debug "finding pid for process $PROCESS"
+        find_pid $PROCESS
+        echo -e "\t$PROCESS: $PID"
+    done
+}
+
+if [[ "$1" == "kill9" ]]; then
+    SEVERITY="-9";
+    set -- "kill" "${@:2}"
+fi
+if [[ "$1" == "kill" ]]; then
+    if [[ "$2" == "" ]]; then
+        list_running_nodes
+        for CMD in $RESULT; do
+            kill_process $CMD
+        done
+        exit $?
+    fi
+    shift
+    for CMD in "$@"; do
+        kill_process $CMD
+    done
+    exit $?
+elif [[ "$1" == "start" ]]; then
+    if [[ "$2" == "" ]]; then
+        list_available_nodes
+        for CMD in $RESULT; do
+            run_process $CMD
+        done
+        exit $?
+    fi
+    shift  # remove first cmd
+    for CMD in "$@"; do
+        run_process $CMD
+    done
+    exit $?
+elif [[ "$1" == "status" ]]; then
+    status
+    exit $?
+else
+    run_process $@
+    exit $?
+fi

@@ -1,0 +1,110 @@
+{% import 'base.html' as base with context %}
+
+{% macro head(name) -%}
+{%- endmacro %}
+
+{% macro js(name) -%}
+{{ name }}.new_response = function (r) {
+    console.log({'response': r});
+    if (r[0][0]['key'] == 'l') {
+        {{ name }}.set_light(r[0][0]['value'], true);
+    } else if (r[0][0]['key'] == 'd') {
+        {{ name }}.set_light(r[0][0]['value'], false);
+    };
+};
+
+{{ name }}.set_light = function (n, s) {
+    if (s) {
+        $("#{{ name }}_" + n + "_button").css("background-color", "LightGreen");
+    } else {
+        $("#{{ name }}_" + n + "_button").css("background-color", "light-gray");
+    };
+};
+
+{{ name }}.get_lights = function () {
+    {{ name }}.call('get_lights', [], function (r) {
+        console.log({'get_lights': r});
+        for (i in r.left) {
+            {{ name }}.set_light(r.left[i], true);
+        };
+        for (i in r.right) {
+            {{ name }}.set_light(r.right[i], true);
+        };
+    });
+};
+
+$({{ name }}).on('connect', function () {
+    {{ name }}.signal('response_signal.connect', {{ name }}.new_response);
+    {{ name }}.call('connected', [], function (r) {
+        console.log({'connected': r});
+        if (r) {
+            {{ name }}.get_lights();
+        } else {
+            {{ name }}.call('connect', [], function (r) {
+                {{ name }}.get_lights();
+            });
+        };
+    });
+});
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro body(name) -%}
+{% set buttons = ['bright16x', 'ht_up', 'ht_down', 'obj16x', 'imagex_wobbler', 'mag1', 'mag2', 'lowmag', 'screen'] %}
+{% for button in buttons %}
+<button id="{{ name }}_{{ button }}_button" onclick="{{ name }}.call('press_button', ['{{ button }}', ]);">{{ button }}</button>
+{% endfor %}
+<!-- add button and light indicators
+  bright16x
+  ht_up [no light]
+  ht_down [no light]
+  
+  obj16x
+  imagex_wobbler
+  mag1
+  mag2
+  lowmag
+  screen
+-->
+<br />
+{% set knobs = ['defy', 'shifty', 'brightness', 'defx', 'shiftx', 'cfocus', 'ffocus'] %}
+{% for knob in knobs %}
+<button id="{{ name }}_{{ knob }}_knob_left" onclick="{{ name }}.call('turn_knob', ['{{ knob }}', 'l']);">{{ knob }} left</button>
+<button id="{{ name }}_{{ knob }}_knob_right" onclick="{{ name }}.call('turn_knob', ['{{ knob }}', 'r']);">{{ knob }} right</button>
+{% endfor %}
+<!-- add knobs
+  defy
+  shifty
+  brightness
+
+  defx
+  shiftx
+  cfocus
+  ffocus
+-->
+{%- endmacro %}
+
+
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</html>

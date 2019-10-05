@@ -1,0 +1,228 @@
+{% import 'statefulbase.html' as base %}
+
+{% macro head(name) -%}
+{%- endmacro %}
+
+{% macro js(name) -%}
+$(function() {
+    $('#{{ name }}_slot_type').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            sid = Number($("#{{ name }}_slot_id").val());
+            stype = $("#{{ name }}_slot_type").val();
+            {{ name }}.call(
+                "config", [{
+                    move_slot: {target: {"id": sid, "type": stype}}}, ]);
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+    $('#{{ name }}_slot_id').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            sid = Number($("#{{ name }}_slot_id").val());
+            stype = $("#{{ name }}_slot_type").val();
+            {{ name }}.call(
+                "config", [{
+                    move_slot: {target: {"id": sid, "type": stype}}}, ]);
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+    $('#{{ name }}_next_save_directory').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            nsd = $("#{{ name }}_next_save_directory").val();
+            console.log({"next_save_directory": nsd});
+            {{ name }}.call(
+                "config", [{save: {next: nsd}}, ]);
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+    $('#{{ name }}_slot_source').on('keydown', function (e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            nsd = $("#{{ name }}_slot_source").val();
+            {{ name }}.call(
+                "config", [{slots: {source: nsd}}, ]);
+            $("#{{ name }}_slot_id").removeClass('pending');
+        } else {
+            $(this).addClass('pending');
+        };
+    });
+
+});
+
+
+function unix_time_to_date(utime) {
+    return new Date(utime * 1000);
+};
+
+$({{ name }}).on('connect', function () {
+    {{ name }}.call('connect');
+    $({{ name }}).on('config_changed', function (e, cfg) {
+        if (
+                (cfg.save != undefined) &&
+                (cfg.save.next != undefined)) {
+            $("#{{ name }}_next_save_directory").val(cfg.save.next);
+            $("#{{ name }}_next_save_directory").removeClass("pending");
+        };
+        if (
+                (cfg.slots != undefined) &&
+                (cfg.slots.source != undefined)) {
+            $("#{{ name }}_slot_source").val(cfg.slots.source);
+            $("#{{ name }}_slot_source").removeClass("pending");
+        };
+        if (
+                (cfg.move_slot != undefined) &&
+                (cfg.move_slot.target != undefined) &&
+                (cfg.move_slot.target.id != undefined)) {
+            $("#{{ name }}_slot_id").val(cfg.move_slot.target.id);
+            $("#{{ name }}_slot_id").removeClass('pending');
+        };
+        if (
+                (cfg.move_slot != undefined) &&
+                (cfg.move_slot.target != undefined) &&
+                (cfg.move_slot.target.type != undefined)) {
+            $("#{{ name }}_slot_type").val(cfg.move_slot.target.type);
+            $("#{{ name }}_slot_type").removeClass('pending');
+        };
+        if (
+                (cfg.move_slot != undefined) &&
+                (cfg.move_slot.target != undefined) &&
+                (cfg.move_slot.target.id != undefined) &&
+                (cfg.move_slot.target.type != undefined)) {
+            $("#{{ name }}_target_slot").text(
+                cfg.move_slot.target.id + "[" +
+                cfg.move_slot.target.type + "]");
+        };
+        if (
+                (cfg.slot != undefined) &&
+                (cfg.slot.barcode != undefined) &&
+                (cfg.slot.barcode.value != undefined) &&
+                (cfg.slot.barcode.type != undefined)) {
+            $("#{{ name }}_current_slot").text(
+                cfg.slot.barcode.value + "[" +
+                cfg.slot.barcode.type + "]");
+        };
+        if (
+                (cfg.slot != undefined) && 
+                (cfg.slot.center != undefined)) {
+            $("#{{ name }}_slot_center").text(
+                JSON.stringify(cfg.slot.center));
+        };
+        if (
+                (cfg.slot != undefined) &&
+                (cfg.slot.rois != undefined)) {
+            $("#{{ name }}_rois").text(JSON.stringify(cfg.slot.rois));
+        };
+        sel = $("#{{ name }}_stages");
+        sel.empty();
+        sns = ["move_slot", "find_slot", "align_beam", "focus_beam"];
+        for (i in sns) {
+            txt = sns[i] + ":";
+            if (
+                    (cfg[sns[i]] != undefined) &&
+                    (cfg[sns[i]].meta != undefined)) {
+                if (cfg[sns[i]].meta.start_time != undefined)
+                    txt += " start: " + unix_time_to_date(cfg[sns[i]].meta.start_time).toLocaleString();
+                if (cfg[sns[i]].meta.finish_time != undefined)
+                    txt += " finish: " + unix_time_to_date(cfg[sns[i]].meta.finish_time).toLocaleString();
+            };
+            sel.append("<li>" + txt + "</li>");
+        };
+        sns = ["bake", "montage"];
+        for (i in sns) {
+            txt = sns[i] + ":";
+            if (
+                    (cfg.slot != undefined) &&
+                    (cfg.slot[sns[i]] != undefined)) {
+                if (cfg.slot[sns[i]].start_time != undefined)
+                    txt += " start: " + unix_time_to_date(cfg.slot[sns[i]].start_time).toLocaleString();
+                if (cfg.slot[sns[i]].finish_time != undefined)
+                    txt += " finish: " + unix_time_to_date(cfg.slot[sns[i]].finish_time).toLocaleString();
+            };
+            sel.append("<li>" + txt + "</li>");
+        };
+
+    });
+});
+{%- endmacro %}
+
+{% macro css(name) -%}
+{%- endmacro %}
+
+{% macro body(name) -%}
+<button id="{{ name }}_make_safe" onclick="{{ name }}.call('make_safe')">Make Safe</button>
+<button id="{{ name }}_move_slot" onclick="{{ name }}.call('move_slot')">Move Slot</button>
+<button id="{{ name }}_find_slot" onclick="{{ name }}.call('find_slot')">Find Slot</button>
+<button id="{{ name }}_align_beam" onclick="{{ name }}.call('align_beam')">Align Beam</button>
+<button id="{{ name }}_bake" onclick="{{ name }}.call('bake')">Bake</button>
+<button id="{{ name }}_focus_beam" onclick="{{ name }}.call('focus_beam')">Focus Beam</button>
+<button id="{{ name }}_montage" onclick="{{ name }}.call('montage')">Montage</button>
+<button id="{{ name }}_image_slots" onclick="{{ name }}.call('image_slots')">Image Slots</button>
+<button id="{{ name }}_stop" onclick="{{ name }}.call('stop')">Stop</button>
+<button id="{{ name }}_kill" onclick="{{ name }}.call('kill')">Kill</button>
+<br />
+<!-- set slot id & type -->
+<label for="{{ name }}_slot_id">Slot ID</label>
+<input id="{{ name }}_slot_id" name="{{ name }}_slot_id" class="slot_id_input" type="number" step=1></input>
+<label for="{{ name }}_slot_type">Slot type</label>
+<input id="{{ name }}_slot_type" name="{{ name }}_slot_type" class="slot_type_input" value="slot"></input>
+<!-- query next slot id (notify?)-->
+<br />
+<div id="{{ name }}_slot_info">
+Target: <span id="{{ name }}_target_slot"></span><br/>
+Current: <span id="{{ name }}_current_slot"></span><br/>
+Center: <span id="{{ name }}_slot_center"></span><br/>
+    Rois: <span id="{{ name }}_rois"></span><br/>
+Stages:
+<ul id="{{ name }}_stages">
+</ul>
+    <!--
+    target (id,type)
+    current
+        - barcode (id, type)
+        - center
+        - rois
+    stages:
+        move_slot (start, end time)
+        find_slot (start, end time)
+        bake (start, end time)
+        montage (start, end time)
+    -->
+</div>
+<label for="{{ name }}_next_save_directory">Next save directory</label>
+<input id="{{ name }}_next_save_directory" name="{{ name }}_next_save_directory" class="next_save_directory_input"></input>
+<br />
+<label for="{{ name }}_slot_source">Slot source</label>
+<input id="{{ name }}_slot_source" name="{{ name }}_slot_source" class="slot_source_input"></input>
+<br />
+<button id="{{ name }}_get_montager_roi" onclick="{{ name }}.call('get_montager_roi');">Get montager roi</button>
+<button id="{{ name }}_set_focus_point" onclick="{{ name }}.call('set_focus_point');">Set focus location</button>
+<button id="{{ name }}_set_align_point" onclick="{{ name }}.call('set_align_point');">Set align location</button>
+<br />
+
+{%- endmacro %}
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+        {{ base.head(name) }}
+        {{ head(name) }}
+    </head>
+    {% call base.make_js() %}
+        {{ base.js(name) }}
+        {{ js(name) }}
+    {% endcall %}
+    {% call base.make_css() %}
+        {{ base.css(name) }}
+        {{ css(name) }}
+    {% endcall %}
+    <body>
+        {{ base.body(name) }}
+        {{ body(name) }}
+    </body>
+</head>

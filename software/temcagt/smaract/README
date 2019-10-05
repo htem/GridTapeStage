@@ -1,0 +1,18 @@
+ctypes wrapper for smaract mcs controller
+
+For now, only synchronous communication is supported.
+
+
+1) Library/controller
+  - connect/disconnect/configure library
+  - channel information (number, type)
+  - enable/disable hand control mode
+  - get dll info
+
+2) Channel
+  - configuration
+  - sensor configuration/enabling/reading
+  - motion configuration/reading
+
+
+If system cannot be found: remove usbserial and ftdi_sio

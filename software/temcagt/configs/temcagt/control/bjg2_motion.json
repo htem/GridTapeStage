@@ -1,0 +1,1 @@
+{"addr": "tcp://127.0.0.1:11010", "loc": "usb:id:xxxxxxxx", "x": {"axis": 1, "cfg":{"max_frequency": 5000, "scale": [0, 0]}}, "y": {"axis": 0, "cfg":{"max_frequency": 5000, "scale": [0, 1]}}}

@@ -21,14 +21,3 @@ Where to start
 -----
 
 It's recommended to read through the files in the order they are listed above.
-
-
-To add
------
-
-- license
-- CAD design (solidworks and STEP files)
-- CAD drawings
-- BOM
-- instructions
-- checkout of control code (as a reference implementation)

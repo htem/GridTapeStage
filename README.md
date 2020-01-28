@@ -1,3 +1,9 @@
+License
+-----
+
+    Please note the [open-source license](LICENSE.md) before proceeding.
+    
+
 Files
 -----
 

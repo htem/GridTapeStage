@@ -35,6 +35,9 @@ Files
 Where to start
 -----
 
+Mechanical CAD files were designed in Solidworks and will require a modern (2016+)
+version of Solidworks to view.
+
 It's recommended to read through the files in the order they are listed above.
 
 Construction of a stage will require fabricating or purchasing parts found in

@@ -7,7 +7,7 @@ pyzmq==14.3.1
 #pizco
 -e git://github.com/braingram/pizco.git@develop#egg=pizco
 
-tornado==4.0.1
+tornado==6.3.3
 
 datautils
 #andor

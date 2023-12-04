@@ -12,4 +12,6 @@ Hardware
 	- Updated CAD components
 	- Changed the material of the takeup_rest from aluminum to stainless steel
 	- Included 4-pin connectors for the load cell amplifier and the LED, and a 7pos housing receptacle for the LED buckpuck
-- Updated Gridtape Assembly Instructions
+### Assembly Instructions
+
+details about the assembly instructions changes...

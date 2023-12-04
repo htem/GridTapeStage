@@ -4,7 +4,7 @@ Hardware
 	- Updated the reel_drive_clamp and shaft_adapter CAD to their slip clutch varients
 	- Added slip clutch and slip clutch pulley CAD 
 	- Updated overall CAD assembly to include slip clutch and slip clutch adjacent CAD
-- Drawings
+### Drawings
 	- Added drawings of updated CAD
 
 ## Docs

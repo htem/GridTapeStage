@@ -7,7 +7,7 @@ Hardware
 - Drawings
 	- Added drawings of updated CAD
 
-Docs
+## Docs
 - Updated BOM:
 	- Updated CAD components
 	- Changed the material of the takeup_rest from aluminum to stainless steel

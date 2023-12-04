@@ -8,7 +8,7 @@ Hardware
 	- Added drawings of updated CAD
 
 ## Docs
-- Updated BOM:
+### BOM
 	- Updated CAD components
 	- Changed the material of the takeup_rest from aluminum to stainless steel
 	- Included 4-pin connectors for the load cell amplifier and the LED, and a 7pos housing receptacle for the LED buckpuck

@@ -10,9 +10,11 @@
 
 ## Docs
 ### BOM
-	- Updated CAD components
-	- Changed the material of the takeup_rest from aluminum to stainless steel
-	- Included 4-pin connectors for the load cell amplifier and the LED, and a 7pos housing receptacle for the LED buckpuck
+- Changed the reel drive plate and slip clutch shaft CAD file reference to reel_drive_clamp_slipclutch and shaft_adatper_slipclutch
+- Removed components for old slipclutch
+- Added current slipclutch
+- Changed the material of the takeup_rest from aluminum to stainless steel
+- Included 4-pin connectors for the load cell amplifier and the LED, and a 7pos housing receptacle for the LED buckpuck
 ### Assembly Instructions
 
 details about the assembly instructions changes...
